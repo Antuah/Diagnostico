@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bored Api</title>
+    <link rel="stylesheet" href="diagnostico.css">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+
+<body>
+    <h1>Probando Bored Api</h1>
+    <button id="newActivityBtn">Obtener Actividad</button>
+    <pre id="response"></pre>
+
+    //Tabla de actividades para escoger
+    <table id="activityTable" style="display:none;">
+        <thead>
+            <tr>
+                <th>Tipo</th>
+                <th>Actividad</th>
+                <th>Participantes</th>
+                <th>Precio</th>
+                <th>Enlace</th>
+                <th>Clave</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody id="activityTableBody">
+        </tbody>
+    </table>
+
+</body>
+
+<script>
+    document.getElementById('newActivityBtn').addEventListener('click', () => {
+        axios(
+            {
+                method: 'get',
+                url: 'https://bored-api.appbrewery.com/random'
+            }
+        ).then(response => {
+            console.log('Bored API New Activity Response:', response.data);
+            displayActivity(response.data);
+        })
+            .catch(error => {
+                console.error('Error fetching from Bored API:', error);
+                document.getElementById('response').textContent = 'Error conectando con Bored API: ' + error.message;
+            });
+    });
+
+    //Obtener por GET https://bored-api.appbrewery.com/filter?type=education
+
+    function displayActivity(activity) {
+        const responseElement = document.getElementById('response');
+        responseElement.textContent = JSON.stringify(activity, null, 2);
+
+        const table = document.getElementById('activityTable');
+        const tableBody = document.getElementById('activityTableBody');
+
+        table.style.display = 'table';
+
+        tableBody.innerHTML = '';
+
+        const row = document.createElement('tr');
+
+        const typeCell = document.createElement('td');
+        typeCell.textContent = activity.type;
+        row.appendChild(typeCell);
+
+        const activityCell = document.createElement('td');
+        activityCell.textContent = activity.activity;
+        row.appendChild(activityCell);
+
+        const participantsCell = document.createElement('td');
+        participantsCell.textContent = activity.participants;
+        row.appendChild(participantsCell);
+
+        const priceCell = document.createElement('td');
+        priceCell.textContent = activity.price;
+        row.appendChild(priceCell);
+
+        const linkCell = document.createElement('td');
+        linkCell.textContent = activity.link || 'N/A';
+        row.appendChild(linkCell);
+
+        const keyCell = document.createElement('td');
+        keyCell.textContent = activity.key;
+        row.appendChild(keyCell);
+
+        const actionCell = document.createElement('td');
+        const selectButton = document.createElement('button');
+        selectButton.textContent = 'Seleccionar';
+        selectButton.addEventListener('click', () => {
+            alert(`Actividad seleccionada: ${activity.activity}`);
+        });
+        actionCell.appendChild(selectButton);
+        row.appendChild(actionCell);
+
+        tableBody.appendChild(row);
+    }
+</script>
+
+</html>
