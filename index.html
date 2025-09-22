@@ -18,12 +18,13 @@
             <label for="activityType">Categoría:</label>
             <select id="activityType">
                 <option value="">Cualquier actividad</option>
-                <option value="recreational"> Recreativa</option>
-                <option value="social"> Social</option>
-                <option value="charity"> Caridad</option>
-                <option value="cooking"> Cocina</option>
-                <option value="relaxation"> Relajación</option>
-                <option value="busywork"> Trabajo</option>
+                <option value="education">Educación</option>
+                <option value="recreational">Recreativa</option>
+                <option value="social">Social</option>
+                <option value="charity">Caridad</option>
+                <option value="cooking">Cocina</option>
+                <option value="relaxation">Relajación</option>
+                <option value="busywork">Trabajo</option>
             </select>
         </div>
         
@@ -225,26 +226,37 @@
         const activityType = document.getElementById('activityType').value;
         const allActivities = getLocalActivities();
         
-        let selectedActivities;
         if (activityType && allActivities[activityType]) {
-            selectedActivities = allActivities[activityType];
+            // Si hay categoría seleccionada, mostrar todas las de esa categoría
+            const selectedActivities = allActivities[activityType].map(activity => ({
+                ...activity,
+                type: activityType,
+                key: Math.floor(Math.random() * 1000000),
+                link: ""
+            }));
+            
+            displayActivity(selectedActivities, 'local');
         } else {
-            // Si no hay tipo seleccionado, mezclar todas las categorías
-            selectedActivities = Object.values(allActivities).flat();
+            // Si no hay tipo seleccionado, mostrar una aleatoria de cualquier categoría
+            const flatActivities = Object.values(allActivities).flat();
+            const randomActivity = flatActivities[Math.floor(Math.random() * flatActivities.length)];
+            
+            // Agregar propiedades faltantes
+            randomActivity.type = Object.keys(allActivities).find(key => 
+                allActivities[key].includes(randomActivity)) || 'mixed';
+            randomActivity.key = Math.floor(Math.random() * 1000000);
+            randomActivity.link = "";
+            
+            displayActivity(randomActivity, 'local');
         }
         
-        const randomActivity = selectedActivities[Math.floor(Math.random() * selectedActivities.length)];
-        
-        // Agregar propiedades faltantes
-        randomActivity.type = activityType || Object.keys(allActivities).find(key => 
-            allActivities[key].includes(randomActivity)) || 'mixed';
-        randomActivity.key = Math.floor(Math.random() * 1000000);
-        randomActivity.link = "";
-        
-        displayActivity(randomActivity, 'local');
-        
         // Mostrar mensaje de que es actividad local
-    const responseElement = document.getElementById('response');
+        const responseElement = document.getElementById('response');
+        if (activityType) {
+            responseElement.innerHTML = `<div class="local-notice">⚠️ API no disponible - Mostrando todas las actividades locales de la categoría</div>` + responseElement.innerHTML;
+        } else {
+            responseElement.innerHTML = `<div class="local-notice">⚠️ API no disponible - Mostrando actividad local aleatoria</div>` + responseElement.innerHTML;
+        }
     }
 
     function showLocalActivity() {
@@ -252,66 +264,87 @@
     }
 
     function displayActivity(activityData, source) {
-        // Si la API devuelve un array (filtros), tomar uno aleatorio
-        let activity;
+        const responseElement = document.getElementById('response');
+        
+        // Si la API devuelve un array (filtros), mostrar todas las actividades
         if (Array.isArray(activityData)) {
             if (activityData.length === 0) {
-                document.getElementById('response').textContent = '❌ No se encontraron actividades para esta categoría';
+                responseElement.textContent = '❌ No se encontraron actividades para esta categoría';
                 return;
             }
-            activity = activityData[Math.floor(Math.random() * activityData.length)];
+            
+            // Mostrar todas las actividades de la categoría
+            let allActivitiesHtml = `<div class="activities-grid">`;
+            allActivitiesHtml += `<h3>Todas las actividades encontradas (${activityData.length}):</h3>`;
+            
+            activityData.forEach((activity, index) => {
+                allActivitiesHtml += `
+                    <div class="activity-item">
+                        <h4>Actividad ${index + 1}</h4>
+                        ${renderActivityCard(activity, source)}
+                    </div>
+                `;
+            });
+            
+            allActivitiesHtml += `</div>`;
+            responseElement.innerHTML = allActivitiesHtml;
+            
+            // Mostrar primera actividad en la tabla también
+            const firstActivity = activityData[0];
+            updateTable(firstActivity);
+            
         } else {
-            activity = activityData;
+            // Para actividades individuales (aleatorio), mostrar solo una
+            responseElement.innerHTML = renderActivityCard(activityData, source);
+            updateTable(activityData);
         }
+    }
 
-    const responseElement = document.getElementById('response');
-    // Render as a readable card instead of raw JSON
-    responseElement.innerHTML = renderActivityCard(activity, source);
-
+    function updateTable(activity) {
+        if (!activity) return;
+        
         const table = document.getElementById('activityTable');
         const tableBody = document.getElementById('activityTableBody');
 
         if (table && tableBody) {
             table.style.display = 'table';
             tableBody.innerHTML = '';
-        }
 
-        const row = document.createElement('tr');
+            const row = document.createElement('tr');
 
-        const typeCell = document.createElement('td');
-        typeCell.textContent = activity.type;
-        row.appendChild(typeCell);
+            const typeCell = document.createElement('td');
+            typeCell.textContent = activity.type;
+            row.appendChild(typeCell);
 
-        const activityCell = document.createElement('td');
-        activityCell.textContent = activity.activity;
-        row.appendChild(activityCell);
+            const activityCell = document.createElement('td');
+            activityCell.textContent = activity.activity;
+            row.appendChild(activityCell);
 
-        const participantsCell = document.createElement('td');
-        participantsCell.textContent = activity.participants;
-        row.appendChild(participantsCell);
+            const participantsCell = document.createElement('td');
+            participantsCell.textContent = activity.participants;
+            row.appendChild(participantsCell);
 
-        const priceCell = document.createElement('td');
-        priceCell.textContent = activity.price;
-        row.appendChild(priceCell);
+            const priceCell = document.createElement('td');
+            priceCell.textContent = activity.price;
+            row.appendChild(priceCell);
 
-        const linkCell = document.createElement('td');
-        linkCell.textContent = activity.link || 'N/A';
-        row.appendChild(linkCell);
+            const linkCell = document.createElement('td');
+            linkCell.textContent = activity.link || 'N/A';
+            row.appendChild(linkCell);
 
-        const keyCell = document.createElement('td');
-        keyCell.textContent = activity.key;
-        row.appendChild(keyCell);
+            const keyCell = document.createElement('td');
+            keyCell.textContent = activity.key;
+            row.appendChild(keyCell);
 
-        const actionCell = document.createElement('td');
-        const selectButton = document.createElement('button');
-        selectButton.textContent = 'Seleccionar';
-        selectButton.addEventListener('click', () => {
-            alert('Actividad seleccionada: ' + activity.activity);
-        });
-        actionCell.appendChild(selectButton);
-        row.appendChild(actionCell);
+            const actionCell = document.createElement('td');
+            const selectButton = document.createElement('button');
+            selectButton.textContent = 'Seleccionar';
+            selectButton.addEventListener('click', () => {
+                alert('Actividad seleccionada: ' + activity.activity);
+            });
+            actionCell.appendChild(selectButton);
+            row.appendChild(actionCell);
 
-        if (tableBody) {
             tableBody.appendChild(row);
         }
     }

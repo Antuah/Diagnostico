@@ -130,3 +130,33 @@
             display: inline-block;
             color: #555;
         }
+        .activities-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .activities-grid h3 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .activity-item {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .activity-item h4 {
+            color: #007bff;
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+        .local-notice {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border: 1px solid #ffeaa7;
+            text-align: center;
+        }
