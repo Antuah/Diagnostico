@@ -10,9 +10,15 @@
 </head>
 
 <body>
-    <h1>Probando Bored Api</h1>
-    <button id="newActivityBtn">Obtener Actividad</button>
-    <pre id="response"></pre>
+    <h1>🎲 Bored API con Proxy CORS</h1>
+    <p>📡 Sistema que prueba múltiples proxies para acceder a la API</p>
+    
+    <div class="button-container">
+        <button id="newActivityBtn">🔄 Obtener Actividad</button>
+        <span id="connectionStatus">🔍 Listo para conectar</span>
+    </div>
+    
+    <pre id="response">Presiona "Obtener Actividad" para comenzar...</pre>
 
     <table id="activityTable" style="display:none;">
         <thead>
@@ -33,22 +39,189 @@
 </body>
 
 <script>
+    // Lista de proxies CORS públicos para probar
+    const corsProxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://cors-anywhere.herokuapp.com/',
+        'https://api.codetabs.com/v1/proxy?quest=',
+        'https://thingproxy.freeboard.io/fetch/'
+    ];
+
+    let currentProxyIndex = 0;
+
     document.getElementById('newActivityBtn').addEventListener('click', () => {
-        axios(
-            {
-                method: 'get',
-                url: 'https://bored-api.appbrewery.com/random'
-            }
-        ).then(response => {
-            console.log('Bored API New Activity Response:', response.data);
-            displayActivity(response.data);
-        })
-            .catch(error => {
-                console.error('Error fetching from Bored API:', error);
-                document.getElementById('response').textContent = 'Error conectando con Bored API: ' + error.message;
-            });
+        const btn = document.getElementById('newActivityBtn');
+        btn.disabled = true;
+        btn.textContent = '🔄 Conectando...';
+        fetchWithProxy();
     });
 
+    function updateConnectionStatus(status, message) {
+        const statusElement = document.getElementById('connectionStatus');
+        statusElement.className = `status-${status}`;
+        statusElement.textContent = message;
+    }
+
+    function resetButton() {
+        const btn = document.getElementById('newActivityBtn');
+        btn.disabled = false;
+        btn.textContent = '🔄 Obtener Actividad';
+    }
+
+    async function fetchWithProxy() {
+        const targetUrl = 'https://bored-api.appbrewery.com/random';
+        
+        // Primero intentar sin proxy
+        try {
+            console.log('🔄 Intentando acceso directo...');
+            updateConnectionStatus('connecting', '🔄 Acceso directo...');
+            document.getElementById('response').textContent = '🔄 Conectando directamente a Bored API...';
+            
+            const directResponse = await axios.get(targetUrl, { timeout: 5000 });
+            console.log('✅ Acceso directo exitoso:', directResponse.data);
+            updateConnectionStatus('success', '✅ Conexión directa');
+            displayActivity(directResponse.data);
+            resetButton();
+            return;
+        } catch (directError) {
+            console.log('❌ Acceso directo falló:', directError.message);
+            updateConnectionStatus('connecting', '🔄 Probando proxies...');
+        }
+
+        // Si el acceso directo falla, probar con proxies
+        await tryProxies(targetUrl);
+    }
+
+    async function tryProxies(targetUrl) {
+        for (let i = 0; i < corsProxies.length; i++) {
+            try {
+                const proxyUrl = corsProxies[i] + encodeURIComponent(targetUrl);
+                console.log(`🔄 Probando proxy ${i + 1}/${corsProxies.length}: ${corsProxies[i]}`);
+                document.getElementById('response').textContent = `🔄 Probando proxy ${i + 1}/${corsProxies.length}...`;
+                
+                const response = await axios.get(proxyUrl, { 
+                    timeout: 8000,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                let data = response.data;
+                
+                // Algunos proxies devuelven string, otros objeto
+                if (typeof data === 'string') {
+                    try {
+                        data = JSON.parse(data);
+                    } catch (parseError) {
+                        console.log('⚠️ Respuesta no es JSON válido');
+                        continue;
+                    }
+                }
+                
+                console.log(`✅ Proxy exitoso (${corsProxies[i]}):`, data);
+                updateConnectionStatus('success', `✅ Proxy ${i + 1} exitoso`);
+                displayActivity(data);
+                currentProxyIndex = i; // Recordar el proxy que funcionó
+                resetButton();
+                return;
+                
+            } catch (proxyError) {
+                console.log(`❌ Proxy ${i + 1} falló:`, proxyError.message);
+            }
+        }
+        
+        // Si todos los proxies fallan, mostrar mensaje de error
+        updateConnectionStatus('error', '❌ Todos los proxies fallaron');
+        displayProxyError();
+        resetButton();
+    }
+
+
+    function displayProxyError() {
+        document.getElementById('response').textContent = `
+❌ TODOS LOS PROXIES FALLARON
+
+🌐 Proxies probados:
+${corsProxies.map((proxy, i) => `${i + 1}. ${proxy}`).join('\n')}
+
+💡 Soluciones alternativas:
+1. Usar actividad local (botón abajo)
+2. Verificar conexión a internet
+3. Intentar más tarde
+
+⚠️ Nota: Los proxies públicos pueden estar temporalmente no disponibles.
+        `;
+        
+        // Agregar botón para actividad local
+        addLocalActivityButton();
+    }
+
+    function addLocalActivityButton() {
+        const existingLocalBtn = document.getElementById('localActivityBtn');
+        if (existingLocalBtn) return; // Ya existe
+        
+        const localBtn = document.createElement('button');
+        localBtn.id = 'localActivityBtn';
+        localBtn.textContent = '🏠 Usar Actividad Local';
+        localBtn.style.marginLeft = '10px';
+        localBtn.addEventListener('click', showLocalActivity);
+        
+        document.getElementById('newActivityBtn').parentNode.insertBefore(localBtn, document.getElementById('newActivityBtn').nextSibling);
+    }
+
+    function showLocalActivity() {
+        const localActivities = [
+            {
+                activity: "Aprende una nueva receta de cocina",
+                type: "cooking",
+                participants: 1,
+                price: 0,
+                accessibility: 0.3,
+                key: Math.floor(Math.random() * 1000000),
+                link: ""
+            },
+            {
+                activity: "Sal a caminar por 30 minutos",
+                type: "recreational", 
+                participants: 1,
+                price: 0,
+                accessibility: 0.1,
+                key: Math.floor(Math.random() * 1000000),
+                link: ""
+            },
+            {
+                activity: "Lee un libro que tengas pendiente",
+                type: "education",
+                participants: 1,
+                price: 0,
+                accessibility: 0.2,
+                key: Math.floor(Math.random() * 1000000),
+                link: ""
+            },
+            {
+                activity: "Organiza tu escritorio de trabajo",
+                type: "busywork",
+                participants: 1,
+                price: 0,
+                accessibility: 0.2,
+                key: Math.floor(Math.random() * 1000000),
+                link: ""
+            },
+            {
+                activity: "Llama a un amigo que no has visto en un tiempo", 
+                type: "social",
+                participants: 2,
+                price: 0,
+                accessibility: 0.4,
+                key: Math.floor(Math.random() * 1000000),
+                link: ""
+            }
+        ];
+        
+        const randomActivity = localActivities[Math.floor(Math.random() * localActivities.length)];
+        console.log('🏠 Mostrando actividad local:', randomActivity);
+        displayActivity(randomActivity);
+    }
 
     function displayActivity(activity) {
         const responseElement = document.getElementById('response');

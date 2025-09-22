@@ -13,20 +13,56 @@
             text-align: center;
             color: #666;
         }
+        .button-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
         #newActivityBtn {
-            display: block;
-            margin: 20px auto;
-            padding: 10px 20px;
+            padding: 12px 24px;
             font-size: 16px;
             background-color: #007bff;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            margin-right: 15px;
         }
         #newActivityBtn:hover {
             background-color: #0056b3;
         }
+        #newActivityBtn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        #localActivityBtn {
+            padding: 12px 24px;
+            font-size: 16px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        #localActivityBtn:hover {
+            background-color: #1e7e34;
+        }
+        
+        #connectionStatus {
+            display: inline-block;
+            margin-left: 15px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .status-ready { background-color: #e7f3ff; color: #0066cc; }
+        .status-connecting { background-color: #fff3cd; color: #856404; }
+        .status-success { background-color: #d4edda; color: #155724; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
         #response {
             background-color: white;
             padding: 20px;
