@@ -13,9 +13,39 @@
             text-align: center;
             color: #666;
         }
-        .button-container {
+        .controls-container {
             text-align: center;
             margin: 20px 0;
+        }
+        
+        .category-selector {
+            margin-bottom: 20px;
+        }
+        
+        .category-selector label {
+            display: inline-block;
+            margin-right: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .category-selector select {
+            padding: 8px 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            cursor: pointer;
+            min-width: 200px;
+        }
+        
+        .category-selector select:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        
+        .button-container {
+            text-align: center;
         }
         
         #newActivityBtn {
@@ -50,19 +80,7 @@
             background-color: #1e7e34;
         }
         
-        #connectionStatus {
-            display: inline-block;
-            margin-left: 15px;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        
-        .status-ready { background-color: #e7f3ff; color: #0066cc; }
-        .status-connecting { background-color: #fff3cd; color: #856404; }
-        .status-success { background-color: #d4edda; color: #155724; }
-        .status-error { background-color: #f8d7da; color: #721c24; }
+
         #response {
             background-color: white;
             padding: 20px;
@@ -94,4 +112,21 @@
         }
         .action-btn:hover {
             background-color: #218838;
+        }
+        .activity-card {
+            border: 1px solid #e0e0e0;
+            padding: 12px;
+            border-radius: 6px;
+            background: #fff;
+            max-width: 100%;
+        }
+        .activity-card .field {
+            margin-bottom: 8px;
+            font-size: 15px;
+            color: #333;
+        }
+        .activity-card .field strong {
+            width: 120px;
+            display: inline-block;
+            color: #555;
         }

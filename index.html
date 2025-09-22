@@ -10,31 +10,30 @@
 </head>
 
 <body>
-    <h1>🎲 Bored API con Proxy CORS</h1>
-    <p>📡 Sistema que prueba múltiples proxies para acceder a la API</p>
+    <h1>Bored API - Encuentra tu próxima actividad</h1>
+    <p>Obtén actividades aleatorias o filtra por categoría</p>
     
-    <div class="button-container">
-        <button id="newActivityBtn">🔄 Obtener Actividad</button>
-        <span id="connectionStatus">🔍 Listo para conectar</span>
+    <div class="controls-container">
+        <div class="category-selector">
+            <label for="activityType">Categoría:</label>
+            <select id="activityType">
+                <option value="">Cualquier actividad</option>
+                <option value="recreational"> Recreativa</option>
+                <option value="social"> Social</option>
+                <option value="charity"> Caridad</option>
+                <option value="cooking"> Cocina</option>
+                <option value="relaxation"> Relajación</option>
+                <option value="busywork"> Trabajo</option>
+            </select>
+        </div>
+        
+        <div class="button-container">
+            <button id="newActivityBtn">Obtener actividad</button>
+        </div>
     </div>
     
-    <pre id="response">Presiona "Obtener Actividad" para comenzar...</pre>
-
-    <table id="activityTable" style="display:none;">
-        <thead>
-            <tr>
-                <th>Tipo</th>
-                <th>Actividad</th>
-                <th>Participantes</th>
-                <th>Precio</th>
-                <th>Enlace</th>
-                <th>Clave</th>
-                <th>Acción</th>
-            </tr>
-        </thead>
-        <tbody id="activityTableBody">
-        </tbody>
-    </table>
+    <div id="response">Selecciona una categoría y presiona "Obtener actividad"</div>
+    <div id="note" style="font-size:12px;color:#666;margin-top:8px;">Nota: las peticiones usan un parámetro anti-cache para evitar respuestas repetidas por proxies. El endpoint aleatorio usa la API oficial cuando es posible.</div>
 
 </body>
 
@@ -47,60 +46,95 @@
         'https://thingproxy.freeboard.io/fetch/'
     ];
 
-    let currentProxyIndex = 0;
+    // Guardar última clave para evitar mostrar repetidos en peticiones aleatorias
+    let lastKey = null;
 
     document.getElementById('newActivityBtn').addEventListener('click', () => {
         const btn = document.getElementById('newActivityBtn');
         btn.disabled = true;
-        btn.textContent = '🔄 Conectando...';
+        btn.textContent = 'Buscando...';
         fetchWithProxy();
     });
-
-    function updateConnectionStatus(status, message) {
-        const statusElement = document.getElementById('connectionStatus');
-        statusElement.className = `status-${status}`;
-        statusElement.textContent = message;
-    }
 
     function resetButton() {
         const btn = document.getElementById('newActivityBtn');
         btn.disabled = false;
-        btn.textContent = '🔄 Obtener Actividad';
+        btn.textContent = 'Obtener actividad';
     }
 
     async function fetchWithProxy() {
-        const targetUrl = 'https://bored-api.appbrewery.com/random';
+        const activityType = document.getElementById('activityType').value;
+        let targetUrl;
         
-        // Primero intentar sin proxy
+        // Añadir cache-buster para evitar respuestas cacheadas por proxies públicos
+        const ts = Date.now();
+        if (activityType) {
+            // Cuando se filtra por tipo usamos el endpoint /filter del mirror (devuelve array)
+            targetUrl = `https://bored-api.appbrewery.com/filter?type=${activityType}&_=${ts}`;
+        } else {
+            // Para aleatorio preferimos la API oficial (más estable)
+            targetUrl = `https://www.boredapi.com/api/activity?_=${ts}`;
+        }
+        
+    document.getElementById('response').textContent = 'Obteniendo actividad...';
+        
+        // Primero intentar sin proxy (con reintentos anti-repetición si llega la misma clave)
         try {
-            console.log('🔄 Intentando acceso directo...');
-            updateConnectionStatus('connecting', '🔄 Acceso directo...');
-            document.getElementById('response').textContent = '🔄 Conectando directamente a Bored API...';
-            
-            const directResponse = await axios.get(targetUrl, { timeout: 5000 });
-            console.log('✅ Acceso directo exitoso:', directResponse.data);
-            updateConnectionStatus('success', '✅ Conexión directa');
-            displayActivity(directResponse.data);
-            resetButton();
-            return;
+            const directResponse = await axios.get(targetUrl, { timeout: 3000 });
+            const handled = await handleDirectResponse(directResponse.data, targetUrl);
+            if (handled) return;
+            // Si no se pudo manejar (por ejemplo siempre se repitió), probar proxies
+            try {
+                await tryProxies(targetUrl);
+            } catch (e) {
+                // ignorar y dejar que finally resetButton() corra
+            }
         } catch (directError) {
-            console.log('❌ Acceso directo falló:', directError.message);
-            updateConnectionStatus('connecting', '🔄 Probando proxies...');
+            // Si el acceso directo falla, probar con proxies
+            try {
+                await tryProxies(targetUrl);
+            } catch (e) {
+                // Ignorar para que finalmente resetButton se ejecute
+            }
+        } finally {
+            resetButton();
+        }
+    }
+
+    // Intenta procesar la respuesta directa y evita repetir la misma actividad (por key)
+    async function handleDirectResponse(data, originalUrl, attempts = 3) {
+        // Extraer una actividad del resultado (si viene array)
+        let activity = Array.isArray(data) ? data[Math.floor(Math.random() * data.length)] : data;
+
+        if (activity && activity.key && lastKey && activity.key === lastKey && attempts > 0) {
+            // Si es la misma clave, intentar de nuevo con un cache-buster nuevo
+            const newUrl = (originalUrl.includes('_=')) ? originalUrl.replace(/_=[0-9]+/, '_=' + Date.now()) : originalUrl + (originalUrl.includes('?') ? '&' : '?') + '_=' + Date.now();
+            try {
+                const resp = await axios.get(newUrl, { timeout: 3000 });
+                return await handleDirectResponse(resp.data, newUrl, attempts - 1);
+            } catch (e) {
+                return false; // no pudo reintentar
+            }
         }
 
-        // Si el acceso directo falla, probar con proxies
-        await tryProxies(targetUrl);
+        // Si no es repetida, mostrar y guardar la key
+        if (activity && activity.key) {
+            lastKey = activity.key;
+        }
+        if (activity) {
+            displayActivity(activity, originalUrl || 'direct');
+            return true;
+        }
+        return false;
     }
 
     async function tryProxies(targetUrl) {
         for (let i = 0; i < corsProxies.length; i++) {
             try {
                 const proxyUrl = corsProxies[i] + encodeURIComponent(targetUrl);
-                console.log(`🔄 Probando proxy ${i + 1}/${corsProxies.length}: ${corsProxies[i]}`);
-                document.getElementById('response').textContent = `🔄 Probando proxy ${i + 1}/${corsProxies.length}...`;
                 
                 const response = await axios.get(proxyUrl, { 
-                    timeout: 8000,
+                    timeout: 4000,
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
                     }
@@ -113,126 +147,135 @@
                     try {
                         data = JSON.parse(data);
                     } catch (parseError) {
-                        console.log('⚠️ Respuesta no es JSON válido');
                         continue;
                     }
                 }
                 
-                console.log(`✅ Proxy exitoso (${corsProxies[i]}):`, data);
-                updateConnectionStatus('success', `✅ Proxy ${i + 1} exitoso`);
-                displayActivity(data);
-                currentProxyIndex = i; // Recordar el proxy que funcionó
-                resetButton();
-                return;
+                // Mostrar progreso del proxy probado
+                document.getElementById('response').textContent = `Probando proxy ${i + 1} de ${corsProxies.length}...`;
+
+                // Verificar que la respuesta tiene el formato esperado
+                if (data && (data.activity || Array.isArray(data))) {
+                    displayActivity(data, proxyUrl);
+                    resetButton();
+                    return;
+                }
                 
             } catch (proxyError) {
-                console.log(`❌ Proxy ${i + 1} falló:`, proxyError.message);
+                // Continuar con el siguiente proxy
+                continue;
             }
         }
         
-        // Si todos los proxies fallan, mostrar mensaje de error
-        updateConnectionStatus('error', '❌ Todos los proxies fallaron');
-        displayProxyError();
+        // Si todos los proxies fallan, mostrar actividades locales
+        showLocalActivityByType();
         resetButton();
     }
 
 
-    function displayProxyError() {
-        document.getElementById('response').textContent = `
-❌ TODOS LOS PROXIES FALLARON
 
-🌐 Proxies probados:
-${corsProxies.map((proxy, i) => `${i + 1}. ${proxy}`).join('\n')}
 
-💡 Soluciones alternativas:
-1. Usar actividad local (botón abajo)
-2. Verificar conexión a internet
-3. Intentar más tarde
-
-⚠️ Nota: Los proxies públicos pueden estar temporalmente no disponibles.
-        `;
-        
-        // Agregar botón para actividad local
-        addLocalActivityButton();
+    function getLocalActivities() {
+        return {
+            education: [
+                { activity: "Lee un libro que tengas pendiente", participants: 1, price: 0, accessibility: 0.2 },
+                { activity: "Aprende 5 palabras nuevas en otro idioma", participants: 1, price: 0, accessibility: 0.3 },
+                { activity: "Ve un documental educativo", participants: 1, price: 0, accessibility: 0.1 },
+                { activity: "Practica matemáticas por 20 minutos", participants: 1, price: 0, accessibility: 0.4 }
+            ],
+            recreational: [
+                { activity: "Sal a caminar por 30 minutos", participants: 1, price: 0, accessibility: 0.1 },
+                { activity: "Juega un videojuego que tengas", participants: 1, price: 0, accessibility: 0.2 },
+                { activity: "Ve una película que tengas en tu lista", participants: 1, price: 0, accessibility: 0.1 },
+                { activity: "Escucha música nueva por 1 hora", participants: 1, price: 0, accessibility: 0.1 }
+            ],
+            social: [
+                { activity: "Llama a un amigo que no has visto en un tiempo", participants: 2, price: 0, accessibility: 0.4 },
+                { activity: "Envía un mensaje a alguien especial", participants: 2, price: 0, accessibility: 0.2 },
+                { activity: "Organiza una videollamada familiar", participants: 3, price: 0, accessibility: 0.5 },
+                { activity: "Escribe una carta a mano a alguien", participants: 2, price: 0.1, accessibility: 0.3 }
+            ],
+            charity: [
+                { activity: "Dona ropa que ya no uses", participants: 1, price: 0, accessibility: 0.6 },
+                { activity: "Ayuda a alguien con sus tareas", participants: 2, price: 0, accessibility: 0.4 },
+                { activity: "Participa como voluntario online", participants: 1, price: 0, accessibility: 0.5 },
+                { activity: "Dona a una causa benéfica", participants: 1, price: 0.5, accessibility: 0.3 }
+            ],
+            cooking: [
+                { activity: "Aprende una nueva receta de cocina", participants: 1, price: 0.3, accessibility: 0.3 },
+                { activity: "Hornea galletas caseras", participants: 1, price: 0.2, accessibility: 0.4 },
+                { activity: "Prepara un smoothie saludable", participants: 1, price: 0.1, accessibility: 0.2 },
+                { activity: "Cocina algo sin seguir receta", participants: 1, price: 0.2, accessibility: 0.5 }
+            ],
+            relaxation: [
+                { activity: "Medita por 15 minutos", participants: 1, price: 0, accessibility: 0.1 },
+                { activity: "Toma un baño relajante", participants: 1, price: 0.1, accessibility: 0.2 },
+                { activity: "Practica yoga básico", participants: 1, price: 0, accessibility: 0.3 },
+                { activity: "Escribe en un diario personal", participants: 1, price: 0, accessibility: 0.1 }
+            ],
+            busywork: [
+                { activity: "Organiza tu escritorio de trabajo", participants: 1, price: 0, accessibility: 0.2 },
+                { activity: "Limpia y organiza tu habitación", participants: 1, price: 0, accessibility: 0.3 },
+                { activity: "Actualiza tu currículum", participants: 1, price: 0, accessibility: 0.4 },
+                { activity: "Organiza las fotos de tu teléfono", participants: 1, price: 0, accessibility: 0.2 }
+            ]
+        };
     }
 
-    function addLocalActivityButton() {
-        const existingLocalBtn = document.getElementById('localActivityBtn');
-        if (existingLocalBtn) return; // Ya existe
+    function showLocalActivityByType() {
+        const activityType = document.getElementById('activityType').value;
+        const allActivities = getLocalActivities();
         
-        const localBtn = document.createElement('button');
-        localBtn.id = 'localActivityBtn';
-        localBtn.textContent = '🏠 Usar Actividad Local';
-        localBtn.style.marginLeft = '10px';
-        localBtn.addEventListener('click', showLocalActivity);
+        let selectedActivities;
+        if (activityType && allActivities[activityType]) {
+            selectedActivities = allActivities[activityType];
+        } else {
+            // Si no hay tipo seleccionado, mezclar todas las categorías
+            selectedActivities = Object.values(allActivities).flat();
+        }
         
-        document.getElementById('newActivityBtn').parentNode.insertBefore(localBtn, document.getElementById('newActivityBtn').nextSibling);
+        const randomActivity = selectedActivities[Math.floor(Math.random() * selectedActivities.length)];
+        
+        // Agregar propiedades faltantes
+        randomActivity.type = activityType || Object.keys(allActivities).find(key => 
+            allActivities[key].includes(randomActivity)) || 'mixed';
+        randomActivity.key = Math.floor(Math.random() * 1000000);
+        randomActivity.link = "";
+        
+        displayActivity(randomActivity, 'local');
+        
+        // Mostrar mensaje de que es actividad local
+    const responseElement = document.getElementById('response');
     }
 
     function showLocalActivity() {
-        const localActivities = [
-            {
-                activity: "Aprende una nueva receta de cocina",
-                type: "cooking",
-                participants: 1,
-                price: 0,
-                accessibility: 0.3,
-                key: Math.floor(Math.random() * 1000000),
-                link: ""
-            },
-            {
-                activity: "Sal a caminar por 30 minutos",
-                type: "recreational", 
-                participants: 1,
-                price: 0,
-                accessibility: 0.1,
-                key: Math.floor(Math.random() * 1000000),
-                link: ""
-            },
-            {
-                activity: "Lee un libro que tengas pendiente",
-                type: "education",
-                participants: 1,
-                price: 0,
-                accessibility: 0.2,
-                key: Math.floor(Math.random() * 1000000),
-                link: ""
-            },
-            {
-                activity: "Organiza tu escritorio de trabajo",
-                type: "busywork",
-                participants: 1,
-                price: 0,
-                accessibility: 0.2,
-                key: Math.floor(Math.random() * 1000000),
-                link: ""
-            },
-            {
-                activity: "Llama a un amigo que no has visto en un tiempo", 
-                type: "social",
-                participants: 2,
-                price: 0,
-                accessibility: 0.4,
-                key: Math.floor(Math.random() * 1000000),
-                link: ""
-            }
-        ];
-        
-        const randomActivity = localActivities[Math.floor(Math.random() * localActivities.length)];
-        console.log('🏠 Mostrando actividad local:', randomActivity);
-        displayActivity(randomActivity);
+        showLocalActivityByType();
     }
 
-    function displayActivity(activity) {
-        const responseElement = document.getElementById('response');
-        responseElement.textContent = JSON.stringify(activity, null, 2);
+    function displayActivity(activityData, source) {
+        // Si la API devuelve un array (filtros), tomar uno aleatorio
+        let activity;
+        if (Array.isArray(activityData)) {
+            if (activityData.length === 0) {
+                document.getElementById('response').textContent = '❌ No se encontraron actividades para esta categoría';
+                return;
+            }
+            activity = activityData[Math.floor(Math.random() * activityData.length)];
+        } else {
+            activity = activityData;
+        }
+
+    const responseElement = document.getElementById('response');
+    // Render as a readable card instead of raw JSON
+    responseElement.innerHTML = renderActivityCard(activity, source);
 
         const table = document.getElementById('activityTable');
         const tableBody = document.getElementById('activityTableBody');
 
-        table.style.display = 'table';
-
-        tableBody.innerHTML = '';
+        if (table && tableBody) {
+            table.style.display = 'table';
+            tableBody.innerHTML = '';
+        }
 
         const row = document.createElement('tr');
 
@@ -264,12 +307,31 @@ ${corsProxies.map((proxy, i) => `${i + 1}. ${proxy}`).join('\n')}
         const selectButton = document.createElement('button');
         selectButton.textContent = 'Seleccionar';
         selectButton.addEventListener('click', () => {
-            alert(`Actividad seleccionada: ${activity.activity}`);
+            alert('Actividad seleccionada: ' + activity.activity);
         });
         actionCell.appendChild(selectButton);
         row.appendChild(actionCell);
 
-        tableBody.appendChild(row);
+        if (tableBody) {
+            tableBody.appendChild(row);
+        }
+    }
+
+    // Render a readable HTML card from an activity object
+    function renderActivityCard(activity, source) {
+        if (!activity) return '';
+        const price = (activity.price === 0 || activity.price === undefined) ? 'Gratis' : activity.price;
+        const accessibility = (activity.accessibility === undefined) ? 'N/A' : activity.accessibility;
+        const link = activity.link ? `<a href="${activity.link}" target="_blank">${activity.link}</a>` : 'N/A';
+
+        return `
+            <div class="activity-card">
+                <div class="field"><strong>Tipo:</strong> ${activity.type || 'N/A'}</div>
+                <div class="field"><strong>Actividad:</strong> ${activity.activity || 'N/A'}</div>
+                <div class="field"><strong>Participantes:</strong> ${activity.participants ?? 'N/A'}</div>
+                <div class="field"><strong>Accesibilidad:</strong> ${accessibility}</div>
+            </div>
+        `;
     }
 </script>
 
